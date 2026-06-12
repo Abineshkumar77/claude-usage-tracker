@@ -53,8 +53,9 @@ async function main() {
       },
     })
     const profile = JSON.parse(profileBody)
-    memberEmail = profile.email_address ?? null
-    if (!memberName) memberName = profile.full_name || profile.display_name || null
+    const account = profile.account ?? profile
+    memberEmail = account.email ?? account.email_address ?? null
+    if (!memberName) memberName = account.full_name || account.display_name || null
   } catch (e) {
     console.error('failed to fetch profile (using fallback):', e.message)
   }
