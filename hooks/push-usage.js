@@ -29,7 +29,7 @@ function request(url, options, body) {
 }
 
 async function main() {
-  const memberName = process.env.CLAUDE_MEMBER_NAME || 'unknown'
+  const memberName = process.env.CLAUDE_MEMBER_NAME || os.userInfo().username
 
   if (!fs.existsSync(CREDS_FILE)) {
     console.error('credentials file not found:', CREDS_FILE)
