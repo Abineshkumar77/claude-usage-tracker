@@ -29,8 +29,6 @@ function request(url, options, body) {
 }
 
 async function main() {
-  const memberName = process.env.CLAUDE_MEMBER_NAME || os.userInfo().username
-
   if (!fs.existsSync(CREDS_FILE)) {
     console.error('credentials file not found:', CREDS_FILE)
     return
@@ -42,6 +40,27 @@ async function main() {
     console.error('no accessToken in credentials file')
     return
   }
+
+  // ── CHANGE 1: Fetch profile to get real name + email ──────────────────────
+  let memberName = process.env.CLAUDE_MEMBER_NAME || null
+  let memberEmail = null
+  try {
+    const profileBody = await request('https://api.anthropic.com/api/oauth/profile', {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'anthropic-beta': 'oauth-2025-04-20',
+        'User-Agent': 'claude-code/2.1.170',
+      },
+    })
+    const profile = JSON.parse(profileBody)
+    memberEmail = profile.email_address ?? null
+    if (!memberName) memberName = profile.full_name || profile.display_name || null
+  } catch (e) {
+    console.error('failed to fetch profile (using fallback):', e.message)
+  }
+  // Fall back to OS username if profile fetch failed and no env var set
+  if (!memberName) memberName = os.userInfo().username
+  // ─────────────────────────────────────────────────────────────────────────
 
   let usage
   try {
@@ -61,13 +80,16 @@ async function main() {
   const fh = usage.five_hour || {}
   const sd = usage.seven_day || {}
 
+  // ── CHANGE 2: Include member_email in payload ─────────────────────────────
   const payload = JSON.stringify({
     member_name: memberName,
+    member_email: memberEmail,
     five_hour_utilization: fh.utilization ?? null,
     five_hour_resets_at: fh.resets_at ?? null,
     seven_day_utilization: sd.utilization ?? null,
     seven_day_resets_at: sd.resets_at ?? null,
   })
+  // ─────────────────────────────────────────────────────────────────────────
 
   try {
     await request(SUPABASE_EDGE_URL, {
@@ -77,7 +99,7 @@ async function main() {
         'Content-Length': Buffer.byteLength(payload),
       },
     }, payload)
-    console.log(`usage pushed for ${memberName}`)
+    console.log(`usage pushed for ${memberName} (${memberEmail ?? 'no email'})`)
   } catch (e) {
     console.error('failed to push:', e.message)
   }
